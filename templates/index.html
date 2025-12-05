@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intelligent PDF Document Retrieval System</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f8fafc;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+    }
+    h1 {
+      color: #1e3a8a;
+    }
+    #upload-area {
+      border: 2px dashed #1e40af;
+      border-radius: 12px;
+      background: #eff6ff;
+      width: 60%;
+      text-align: center;
+      padding: 2rem;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    #upload-area.dragover {
+      background: #bfdbfe;
+    }
+    #search-bar {
+      margin-top: 1.5rem;
+      display: flex;
+      width: 60%;
+    }
+    #search-input {
+      flex: 1;
+      padding: 0.8rem;
+      font-size: 1rem;
+      border: 1px solid #93c5fd;
+      border-radius: 8px 0 0 8px;
+      outline: none;
+    }
+    #search-btn {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 0 8px 8px 0;
+      padding: 0.8rem 1.5rem;
+      cursor: pointer;
+    }
+    #progress-container {
+      margin-top: 1rem;
+      width: 60%;
+      display: none;
+    }
+    #progress-bar-container {
+      background: #e5e7eb;
+      border-radius: 8px;
+      height: 24px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+    #progress-bar {
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+      height: 100%;
+      width: 0%;
+      transition: width 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 0.75rem;
+      font-weight: bold;
+    }
+    #progress-text {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #4b5563;
+      text-align: center;
+    }
+    #results {
+      margin-top: 2rem;
+      width: 60%;
+    }
+    .result {
+      background: white;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.8rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    #shutdown-container {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1000;
+    }
+    #shutdown-btn {
+      background-color: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    #shutdown-btn:hover {
+      background-color: #b91c1c;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    }
+    #shutdown-btn:active {
+      background-color: #991b1b;
+    }
+    #shutdown-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div id="shutdown-container">
+    <button id="shutdown-btn" title="Shutdown the server">Shutdown</button>
+  </div>
+  <h1>Intelligent PDF Document Retrieval System</h1>
+  <div id="pdf-count" style="margin-bottom: 1rem; color: #4b5563; font-size: 0.9rem;">
+    PDFs: <span id="current-count">0</span> / <span id="max-pdfs">10</span>
+  </div>
+  <div id="upload-area">
+    <p>Drag and drop PDF files here or click to upload</p>
+    <input type="file" id="file-input" multiple accept=".pdf" hidden>
+  </div>
+  <div id="progress-container">
+    <div id="progress-bar-container">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="progress-text"></div>
+  </div>
+  <div id="search-bar">
+    <input id="search-input" type="text" placeholder="Enter your query...">
+    <button id="search-btn">Search</button>
+  </div>
+  <div id="results"></div>
+  <script>
+    const uploadArea = document.getElementById('upload-area');
+    const fileInput = document.getElementById('file-input');
+    const searchBtn = document.getElementById('search-btn');
+    const searchInput = document.getElementById('search-input');
+    const resultsDiv = document.getElementById('results');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const currentCountSpan = document.getElementById('current-count');
+    const maxPdfsSpan = document.getElementById('max-pdfs');
+    let progressInterval = null;
+
+    function updateProgress() {
+      fetch('/upload/progress')
+        .then(res => res.json())
+        .then(data => {
+          // Update PDF count if available
+          if (data.current_pdf_count !== undefined) {
+            currentCountSpan.textContent = data.current_pdf_count;
+          }
+          // Update max PDFs if available
+          if (data.max_pdfs !== undefined) {
+            maxPdfsSpan.textContent = data.max_pdfs;
+          }
+          
+          if (data.status === 'processing' || data.status === 'complete') {
+            progressContainer.style.display = 'block';
+            const percentage = data.total > 0 ? (data.current / data.total) * 100 : 0;
+            progressBar.style.width = percentage + '%';
+            progressBar.textContent = Math.round(percentage) + '%';
+            
+            if (data.current_file) {
+              progressText.textContent = `${data.message} - ${data.current_file}`;
+            } else {
+              progressText.textContent = data.message || `Processing ${data.current}/${data.total}...`;
+            }
+            
+            if (data.status === 'complete') {
+              clearInterval(progressInterval);
+              progressInterval = null;
+              // Update PDF count
+              if (data.current_pdf_count !== undefined) {
+                currentCountSpan.textContent = data.current_pdf_count;
+              }
+              setTimeout(() => {
+                progressContainer.style.display = 'none';
+              }, 3000);
+            }
+          } else if (data.status === 'error') {
+            clearInterval(progressInterval);
+            progressInterval = null;
+            progressText.textContent = data.message;
+            progressText.style.color = 'red';
+            setTimeout(() => {
+              progressContainer.style.display = 'none';
+              progressText.style.color = '#4b5563';
+            }, 5000);
+          }
+        })
+        .catch(err => {
+          console.error('Progress check error:', err);
+        });
+    }
+
+    // Initialize PDF count on page load
+    updateProgress();
+
+    function uploadFiles(files) {
+      if (!files || files.length === 0) return;
+      
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append('files', file);
+      }
+      
+      // Show progress container
+      progressContainer.style.display = 'block';
+      progressBar.style.width = '0%';
+      progressText.textContent = 'Starting upload...';
+      
+      // Start polling for progress
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      progressInterval = setInterval(updateProgress, 200); // Poll every 200ms
+      
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      })
+      .then(res => {
+          if (!res.ok) {
+            return res.json().then(data => {
+              throw new Error(data.message || 'Upload failed');
+            });
+          }
+          return res.json();
+        })
+      .then(data => {
+          // Check if there's an error (e.g., PDF limit exceeded)
+          if (data.status === 'error') {
+            clearInterval(progressInterval);
+            progressInterval = null;
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '100%';
+            progressText.textContent = data.message;
+            progressText.style.color = 'red';
+            alert(data.message);
+            setTimeout(() => {
+              progressContainer.style.display = 'none';
+              progressText.style.color = '#4b5563';
+            }, 5000);
+            return;
+          }
+          // Update count if provided
+          if (data.current_count !== undefined) {
+            currentCountSpan.textContent = data.current_count;
+          }
+          // Progress will be updated via polling
+          updateProgress(); // Immediate update
+        })
+      .catch((error) => {
+        clearInterval(progressInterval);
+        progressInterval = null;
+        progressContainer.style.display = 'none';
+        console.error('Upload error:', error);
+        alert('Upload failed: ' + (error.message || 'Unknown error'));
+      });
+    }
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => uploadFiles(e.target.files));
+
+    ['dragover', 'dragenter'].forEach(ev => {
+      uploadArea.addEventListener(ev, e => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+      });
+    });
+    ['dragleave', 'dragend', 'drop'].forEach(ev => {
+      uploadArea.addEventListener(ev, e => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+      });
+    });
+    uploadArea.addEventListener('drop', e => uploadFiles(e.dataTransfer.files));
+
+    function performSearch() {
+      const query = searchInput.value.trim();
+      if (!query) return alert('Enter a query');
+      resultsDiv.innerHTML = '<p>Searching...</p>';
+      fetch(`/search?q=${encodeURIComponent(query)}`)
+        .then(r => r.json())
+        .then(data => {
+          resultsDiv.innerHTML = '';
+          if (data.error) {
+            resultsDiv.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
+            return;
+          }
+          if (data.results && data.results.length) {
+            data.results.forEach(r => {
+              const div = document.createElement('div');
+              div.className = 'result';
+              div.innerHTML = `<strong>${r.filename}</strong><br>Score: ${r.score}<br><small>${r.snippet}</small>`;
+              resultsDiv.appendChild(div);
+            });
+          } else {
+            resultsDiv.innerHTML = '<p>No results found. Please Make sure you have uploaded PDFs and indexed them.</p>';
+          }
+        })
+        .catch((error) => {
+          resultsDiv.innerHTML = '<p>Search error occurred. PleaseMake sure you have uploaded PDFs first.</p>';
+          console.error('Search error:', error);
+          alert('Search error: ' + (error.message || 'Unknown error'));
+        });
+    }
+
+    searchBtn.addEventListener('click', performSearch);
+    searchInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') performSearch();
+    });
+
+    // Shutdown button functionality
+    const shutdownBtn = document.getElementById('shutdown-btn');
+    shutdownBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to shutdown the server?\n\nThis will stop the server and you will need to restart it manually.\n\nClick OK to proceed or Cancel to abort.')) {
+        shutdownBtn.disabled = true;
+        shutdownBtn.textContent = 'Shutting down...';
+        shutdownBtn.style.opacity = '0.6';
+        
+        fetch('/shutdown', {
+          method: 'POST'
+        })
+        .then(() => {
+          shutdownBtn.textContent = 'Server shutdown initiated';
+          alert('Server is shutting down. The page will become unavailable shortly.');
+        })
+        .catch((error) => {
+          console.error('Shutdown error:', error);
+          shutdownBtn.disabled = false;
+          shutdownBtn.textContent = 'Shutdown';
+          shutdownBtn.style.opacity = '1';
+          alert('Shutdown request sent. Server may already be stopping.');
+        });
+      }
+    });
+  </script>
+</body>
+</html>
+
