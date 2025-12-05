@@ -208,7 +208,6 @@ class Index:
                     if result["score"] > filename_to_best_result[filename]["score"]:
                         filename_to_best_result[filename] = result
             
-            # discoved edge case: for files with the same name, the best result is the one with the highest score.
             deduplicated_results = list(filename_to_best_result.values())
             deduplicated_results.sort(key=lambda x: x["score"], reverse=True)
             return deduplicated_results[:top_k]

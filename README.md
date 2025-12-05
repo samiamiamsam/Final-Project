@@ -1,7 +1,7 @@
 # Intelligent PDF Document Retrieval System
 
 ## Samarth Patel (CS-410)
-It is a web application that performs semantic search across user uploaded PDF documents using a hybrid approach combining BM25 (keyword-based) and BERT (semantic) retrieval algorithms.
+It is a web application that performs semantic search across user uploaded PDF documents using a hybrid approach combining BM25 (keyword-based) and BERT (semantic) retrieval algorithms. TOPK = 5
 
 ## Features
 
