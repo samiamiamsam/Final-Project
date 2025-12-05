@@ -77,6 +77,9 @@ It is a web application that performs semantic search across user uploaded PDF d
    - Enter your query in the search bar
    - Results will show relevant document snippets ranked by relevance score
 
+6. **Dataset:**
+   - Use following link to download PDFS: "https://www.kaggle.com/datasets/manisha717/dataset-of-pdf-files/data"
+
 ## How does It Work?
 
 1. **Document Processing**: PDFs are extracted and split into overlapping text chunks
